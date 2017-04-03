@@ -24,16 +24,16 @@ double Wd(const cv::Point2d &a, const cv::Point2d &b, const cv::Mat &tcurr) {
 
 void ETFIteration(cv::Mat &tcurr, const cv::Mat &grad, const int kradius) {
   cv::Mat tnew = cv::Mat::zeros(tcurr.size(), CV_64FC1);
-  for (uint y = 0; y < tcurr.size().height; ++y) {
-    for (uint x = 0; x < tcurr.size().width; ++x) {
+  for (auto y = 0; y < (int)tcurr.size().height; ++y) {
+    for (auto x = 0; x < (int)tcurr.size().width; ++x) {
       const auto pa = cv::Point2d(x, y);
       double sigma = 0;
       double k = 0;
-      for (uint oy = -kradius; oy <= kradius; ++oy) {
+      for (auto oy = -kradius; oy <= kradius; ++oy) {
         int py = y + oy;
         if (py < 0 || py > tcurr.size().height)
           continue;
-        for (uint ox = -kradius; ox <= kradius; ++ox) {
+        for (auto ox = -kradius; ox <= kradius; ++ox) {
           int px = x + ox;
           if (px < 0 || px > tcurr.size().width)
             continue;
@@ -55,14 +55,25 @@ cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
   cv::cvtColor(img, gray, CV_BGR2GRAY);
 
   cv::Mat gx, gy, gm, gt, gmnorm;
-  cv::Sobel(gray, gx, CV_16S, 1, 0, 3);
-  cv::Sobel(gray, gy, CV_16S, 0, 1, 3);
+  cv::Sobel(gray, gx, CV_64F, 1, 0, 3);
+  cv::Sobel(gray, gy, CV_64F, 0, 1, 3);
   cv::magnitude(gx, gy, gm);
   cv::normalize(gm, gt, 1.0, 0.0, cv::NORM_INF);
   gt.convertTo(gmnorm, CV_64FC1);
 
+  cv::imshow("Grad", gmnorm);
+  cv::waitKey(100);
+
   cv::Mat etf;
   gmnorm.copyTo(etf);
+  for (auto i = 0; i < etf_iterations; ++i)
+    ETFIteration(etf, gmnorm, kernel_radius);
+
+  cv::Mat etf_vis;
+  cv::normalize(etf, etf_vis, 1.0, 0.0, cv::NORM_MINMAX);
+  cv::imshow("ETF", etf_vis);
+
+  return etf;
 }
 
 int main(int argc, char **argv) {
@@ -73,6 +84,9 @@ int main(int argc, char **argv) {
 
   auto img = cv::imread(argv[1]);
   cv::imshow("input", img);
+  cv::waitKey(100);
+
+  coherentLines(img);
   cv::waitKey(0);
 
   return 0;
