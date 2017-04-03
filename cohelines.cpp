@@ -10,7 +10,16 @@ int Ws(const cv::Point2d &a, const cv::Point2d &b, const int radius) {
 
 double Wm(const cv::Point2d &a, const cv::Point2d &b, const cv::Mat &grad,
           const double eta = 1.0) {
-  double ga = grad.at<>
+  double ga = grad.at<double>(a.y, a.x);
+  double gb = grad.at<double>(b.y, b.x);
+  return (0.5 * (1.0 + std::tanh(eta * (gb - ga))));
+}
+
+double Wd(const cv::Point2d &a, const cv::Point2d &b, const cv::Mat &tcurr) {
+  double ta = tcurr.at<double>(a.y, a.x);
+  double tb = tcurr.at<double>(b.y, b.x);
+  double mult = ta * tb;
+  return ((mult > 0) ? std::abs(mult) : -1.0 * std::abs(mult));
 }
 
 cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5) {
