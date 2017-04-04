@@ -10,15 +10,15 @@ int Ws(const cv::Point2d &a, const cv::Point2d &b, const int radius) {
 
 double Wm(const cv::Point2d &a, const cv::Point2d &b, const cv::Mat &mag,
           const double eta = 1.0) {
-  double ga = mag.at<double>(a.y, a.x);
-  double gb = mag.at<double>(b.y, b.x);
+  const double ga = mag.at<double>(a);
+  const double gb = mag.at<double>(b);
   return (0.5 * (1.0 + std::tanh(eta * (gb - ga))));
 }
 
 double Wd(const cv::Point2d &a, const cv::Point2d &b, const cv::Mat &tcurr) {
-  cv::Vec2d ta = tcurr.at<cv::Vec2d>(a.y, a.x);
-  cv::Vec2d tb = tcurr.at<cv::Vec2d>(b.y, b.x);
-  double mult = ta.dot(tb);
+  const cv::Vec2d ta = tcurr.at<cv::Vec2d>(a);
+  const cv::Vec2d tb = tcurr.at<cv::Vec2d>(b);
+  const double mult = ta.dot(tb);
   return ((mult > 0) ? std::abs(mult) : -1.0 * std::abs(mult));
 }
 
@@ -57,7 +57,7 @@ cv::Mat g_perpendicular(const cv::Mat &gx, const cv::Mat &gy) {
 }
 
 cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
-                      const int etf_iterations = 3) {
+                      const int etf_iterations = 1) {
   cv::Mat gray;
   cv::cvtColor(img, gray, CV_BGR2GRAY);
 
@@ -75,7 +75,7 @@ cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
   for (auto i = 0; i < etf_iterations; ++i) {
     ETFIteration(etf, mag, kernel_radius);
 
-    cv::Mat etf_mag, etf_vis, *s = nullptr;
+    cv::Mat etf_mag, etf_vis, s[2];
     cv::split(etf, s);
     cv::magnitude(s[0], s[1], etf_mag);
     cv::normalize(etf_mag, etf_vis, 1.0, 0.0, cv::NORM_MINMAX);
