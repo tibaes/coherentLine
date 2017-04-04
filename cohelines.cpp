@@ -46,13 +46,14 @@ void ETFIteration(cv::Mat &tcurr, const cv::Mat &mag, const int kradius) {
       tnew.at<cv::Vec2d>(pa) = (k > 0.1) ? sigma / k : cv::Vec2d(0.0, 0.0);
     }
   }
-  tcurr = tnew;
+  cv::normalize(tnew, tcurr, 1.0, 0.0, cv::NORM_MINMAX);
 }
 
 cv::Mat g_perpendicular(const cv::Mat &gx, const cv::Mat &gy) {
-  cv::Mat ng;
+  cv::Mat ng, n;
   std::vector<cv::Mat> garray = {gy, -1 * gx};
   cv::merge(garray.data(), garray.size(), ng);
+  cv::normalize(ng, n, 1.0, 0.0, cv::NORM_MINMAX);
   return ng;
 }
 
@@ -65,7 +66,7 @@ cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
   cv::Sobel(gray, gx, CV_64F, 1, 0, 3);
   cv::Sobel(gray, gy, CV_64F, 0, 1, 3);
   cv::magnitude(gx, gy, gm);
-  cv::normalize(gm, gt, 1.0, 0.0, cv::NORM_MINMAX);
+  cv::normalize(gm, gt, 1.0, 0.0, cv::NORM_INF);
   gt.convertTo(mag, CV_64FC1);
 
   cv::imshow("Grad", mag);
@@ -78,7 +79,7 @@ cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
     cv::Mat etf_mag, etf_vis, s[2];
     cv::split(etf, s);
     cv::magnitude(s[0], s[1], etf_mag);
-    cv::normalize(etf_mag, etf_vis, 1.0, 0.0, cv::NORM_MINMAX);
+    cv::normalize(etf_mag, etf_vis, 1.0, 0.0, cv::NORM_INF);
     cv::imshow("ETF", etf_vis);
     cv::waitKey(0);
   }
