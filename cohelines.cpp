@@ -4,8 +4,8 @@
 
 #include <iostream>
 
-int Ws(const cv::Point2d &a, const cv::Point2d &b, const int radius) {
-  return ((cv::norm(cv::Mat(a), cv::Mat(b)) < radius) ? 1 : 0);
+double Ws(const cv::Point2d &a, const cv::Point2d &b, const int radius) {
+  return ((cv::norm(cv::Mat(a), cv::Mat(b)) < radius) ? 1.0 : 0.0);
 }
 
 double Wm(const cv::Point2d &a, const cv::Point2d &b, const cv::Mat &mag,
@@ -22,11 +22,6 @@ double Wd(const cv::Point2d &a, const cv::Point2d &b, const cv::Mat &tcurr) {
   return ((mult > 0) ? std::abs(mult) : -1.0 * std::abs(mult));
 }
 
-cv::Vec2d g_norm(const cv::Vec2d &v) {
-  const auto n = cv::norm(v);
-  return ((n > 0.1) ? (v / n) : cv::Vec2d(0.0, 0.0));
-}
-
 void ETFIteration(cv::Mat &tcurr, const cv::Mat &mag, const int kradius) {
   cv::Mat tnew = cv::Mat::zeros(tcurr.size(), CV_64FC2);
   for (auto y = 0; y < (int)tcurr.size().height; ++y) {
@@ -39,23 +34,27 @@ void ETFIteration(cv::Mat &tcurr, const cv::Mat &mag, const int kradius) {
           continue;
         for (auto ox = -kradius; ox <= kradius; ++ox) {
           int px = x + ox;
-          if (px < 0 || px >= tcurr.size().width)
+          if ((px == 0 && py == 0) || px < 0 || px >= tcurr.size().width)
             continue;
           const auto pb = cv::Point2d(px, py);
           sigma += tcurr.at<cv::Vec2d>(pb) * Ws(pa, pb, kradius) *
                    Wm(pa, pb, mag) * Wd(pa, pb, tcurr);
         }
       }
-      tnew.at<cv::Vec2d>(pa) = g_norm(sigma);
+      cv::normalize(sigma, tnew.at<cv::Vec2d>(pa));
     }
   }
+  tcurr = tnew;
 }
 
 cv::Mat g_perpendicular(const cv::Mat &gx, const cv::Mat &gy) {
   cv::Mat ng;
   std::vector<cv::Mat> garray = {gy, -1 * gx};
   cv::merge(garray.data(), garray.size(), ng);
-  ng.forEach<cv::Vec2d>([](cv::Vec2d &v, const int *pos) { v = g_norm(v); });
+  ng.forEach<cv::Vec2d>([](cv::Vec2d &v, const int *pos) {
+    auto cp = v;
+    cv::normalize(cp, v);
+  });
   return ng;
 }
 
@@ -64,27 +63,33 @@ cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
   cv::Mat gray;
   cv::cvtColor(img, gray, CV_BGR2GRAY);
 
-  cv::Mat gx, gy, gm, mag, gt, g0;
+  cv::Mat gx, gy, gm, mag;
   cv::Sobel(gray, gx, CV_64F, 1, 0, 3);
   cv::Sobel(gray, gy, CV_64F, 0, 1, 3);
   cv::magnitude(gx, gy, gm);
-  cv::normalize(gm, gt, 1.0, 0.0, cv::NORM_INF);
-  gt.convertTo(mag, CV_64FC1);
+  cv::normalize(gm, mag, 1.0, 0.0, cv::NORM_MINMAX);
 
   cv::imshow("Grad", mag);
   cv::waitKey(100);
 
   cv::Mat etf = g_perpendicular(gx, gy);
   for (auto i = 0; i < etf_iterations; ++i) {
+    cv::Mat etf_vis0, etf_vis1, s[2];
+    cv::split(etf, s);
+    etf_vis0 = 0.5 * s[0] + 0.5 * s[1];
+    cv::imshow("ETF0-0", s[0]);
+    cv::imshow("ETF0-1", s[1]);
+    cv::imshow("ETF0-mean", etf_vis0);
+
     std::cout << "starting iteration " << i << std::endl;
     ETFIteration(etf, mag, kernel_radius);
     std::cout << "finished iteration " << i << std::endl;
 
-    cv::Mat etf_mag, etf_vis, s[2];
     cv::split(etf, s);
-    cv::magnitude(s[0], s[1], etf_mag);
-    cv::normalize(etf_mag, etf_vis, 1.0, 0.0, cv::NORM_MINMAX);
-    cv::imshow("ETF", etf_vis);
+    etf_vis1 = 0.5 * s[0] + 0.5 * s[1];
+    cv::imshow("ETF1-0", s[0]);
+    cv::imshow("ETF1-1", s[1]);
+    cv::imshow("ETF1-mean", etf_vis1);
     cv::waitKey(0);
   }
 
