@@ -4,6 +4,8 @@
 
 #include <iostream>
 
+// Edge Tangent Flow
+
 double Ws(const cv::Point2d &a, const cv::Point2d &b, const int radius) {
   return ((cv::norm(cv::Mat(a), cv::Mat(b)) < radius) ? 1.0 : 0.0);
 }
@@ -58,11 +60,8 @@ cv::Mat g_perpendicular(const cv::Mat &gx, const cv::Mat &gy) {
   return ng;
 }
 
-cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
-                      const int etf_iterations = 5) {
-  cv::Mat gray;
-  cv::cvtColor(img, gray, CV_BGR2GRAY);
-
+cv::Mat ETF(const cv::Mat &gray, const int kernel_radius,
+            const int etf_iterations) {
   cv::Mat gx, gy, gm, mag;
   cv::Sobel(gray, gx, CV_64F, 1, 0, 3);
   cv::Sobel(gray, gy, CV_64F, 0, 1, 3);
@@ -77,8 +76,8 @@ cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
     cv::Mat etf_vis0, etf_vis1, s[2];
     cv::split(etf, s);
     etf_vis0 = 0.5 * s[0] + 0.5 * s[1];
-    cv::imshow("ETF0-0", s[0]);
-    cv::imshow("ETF0-1", s[1]);
+    // cv::imshow("ETF0-0", s[0]);
+    // cv::imshow("ETF0-1", s[1]);
     cv::imshow("ETF0-mean", etf_vis0);
 
     std::cout << "starting iteration " << i << std::endl;
@@ -90,11 +89,36 @@ cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
     cv::imshow("ETF1-0", s[0]);
     cv::imshow("ETF1-1", s[1]);
     cv::imshow("ETF1-mean", etf_vis1);
-    cv::waitKey(0);
+    cv::waitKey(100);
   }
 
   return etf;
 }
+
+// Flow-based Difference-of-Gaussian
+
+cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
+             const double sigma_c, const double sigma_m, const double thrs,
+             const double delta_m, const double delta_n) {
+  const auto sigma_s = 1.6 * sigma_c;
+}
+
+// Coherent Lines Filter
+
+cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
+                      const int etf_iterations = 5, const double p_s = 0.99,
+                      const double sigma_c = 1.0, const double sigma_m = 3.0,
+                      const double thrs = 0.2, const double delta_m = 1.0,
+                      const double delta_n = 1.0) {
+  cv::Mat gray;
+  cv::cvtColor(img, gray, CV_BGR2GRAY);
+  const auto etf = ETF(gray, kernel_radius, etf_iterations);
+  const auto fdog =
+      FDOG(gray, etf, p_s, sigma_c, sigma_m, thrs, delta_m, delta_n);
+  return cv::Mat();
+}
+
+// Sample
 
 int main(int argc, char **argv) {
   if (argc != 2) {
