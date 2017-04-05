@@ -97,10 +97,45 @@ cv::Mat ETF(const cv::Mat &gray, const int kernel_radius,
 
 // Flow-based Difference-of-Gaussian
 
+double F(const cv::Point &s, const cv::Mat &gray, const cv::Mat &gauss_dog,
+         const cv::Mat &etf, const int delta_q) {
+  const cv::Vec2d direction = etf.at<cv::Vec2d>(s);
+  const auto perpendicular = cv::Vec2d(direction[1], -direction[0]);
+
+  double integral = 0.0;
+  const int half_k = gauss_dog.size().area() / 2;
+  for (int k = -half_k; k <= half_k; ++k) {
+    const auto offset = k * delta_q * perpendicular;
+    const auto target = s + cv::Point(offset);
+    if (!target.inside(cv::Rect(cv::Point(0, 0), gray.size())))
+      continue;
+    integral +=
+        gauss_dog.at<double>(k + half_k) * (double)gray.at<uchar>(target);
+  }
+
+  return integral;
+}
+
 cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
              const double sigma_c, const double sigma_m, const double thrs,
-             const double delta_m, const double delta_n) {
-  const auto sigma_s = 1.6 * sigma_c;
+             const double delta_p, const double delta_q) {
+  int p = 2.0 * sigma_m;
+  p += (p % 2) ? 0 : 1;
+  const auto gauss_kernel_m = cv::getGaussianKernel(p, sigma_m, CV_64F);
+
+  const double sigma_s = 1.6 * sigma_c;
+  int q = 2.0 * sigma_c;
+  q = (q % 2) ? 0 : 1;
+  const auto gauss_kernel_c = cv::getGaussianKernel(q, sigma_c, CV_64F);
+  const auto gauss_kernel_s = cv::getGaussianKernel(q, sigma_s, CV_64F);
+  const auto gauss_dog_cs = gauss_kernel_c - p_s * gauss_kernel_s; // f(t)
+
+  for (auto y = 0; y < gray.size().height; ++y) {
+    for (auto x = 0; x < gray.size().width; ++x) {
+      const auto pt_gray = cv::Point(x, y);
+      // cx(0)
+    }
+  }
 }
 
 // Coherent Lines Filter
