@@ -101,7 +101,6 @@ double F(const cv::Point &s, const cv::Mat &gray, const cv::Mat &gauss_dog,
          const cv::Mat &etf, const int delta_q) {
   const cv::Vec2d direction = etf.at<cv::Vec2d>(s);
   const auto perpendicular = cv::Vec2d(direction[1], -direction[0]);
-
   double integral = 0.0;
   const int half_k = gauss_dog.size().area() / 2;
   for (int k = -half_k; k <= half_k; ++k) {
@@ -112,8 +111,24 @@ double F(const cv::Point &s, const cv::Mat &gray, const cv::Mat &gauss_dog,
     integral +=
         gauss_dog.at<double>(k + half_k) * (double)gray.at<uchar>(target);
   }
-
   return integral;
+}
+
+uchar H(const cv::Point &s, const cv::Mat &gray, const cv::Mat &etf,
+        const cv::Mat &gauss_m, const cv::Mat &gauss_dog, const int delta_p,
+        const int delta_q, const double thrs) {
+  const cv::Vec2d direction = etf.at<cv::Vec2d>(s);
+  double integral = 0.0;
+  const int half_k = gauss_m.size().area() / 2;
+  for (int k = -half_k; k <= half_k; ++k) {
+    const auto offset = k * delta_p * direction;
+    const auto target = s + cv::Point(offset);
+    if (!target.inside(cv::Rect(cv::Point(0, 0), gray.size())))
+      continue;
+    integral += gauss_m.at<double>(k + half_k) *
+                F(target, gray, gauss_dog, etf, delta_q);
+  }
+  return ((integral < 0 && 1 + std::tanh(integral) < thrs) ? 0 : 1);
 }
 
 cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
@@ -130,12 +145,15 @@ cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
   const auto gauss_kernel_s = cv::getGaussianKernel(q, sigma_s, CV_64F);
   const auto gauss_dog_cs = gauss_kernel_c - p_s * gauss_kernel_s; // f(t)
 
+  cv::Mat response = cv::Mat::zeros(gray.size(), CV_8UC1);
   for (auto y = 0; y < gray.size().height; ++y) {
     for (auto x = 0; x < gray.size().width; ++x) {
-      const auto pt_gray = cv::Point(x, y);
-      // cx(0)
+      const auto root = cv::Point(x, y);
+      response.at<uchar>(root) = H(root, gray, etf, gauss_kernel_m,
+                                   gauss_dog_cs, delta_p, delta_q, thrs);
     }
   }
+  return response;
 }
 
 // Coherent Lines Filter
