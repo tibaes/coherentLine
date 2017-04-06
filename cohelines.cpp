@@ -4,6 +4,10 @@
 
 #include <iostream>
 
+bool inside(const cv::Point &pt, const cv::Size &sz) {
+  return (!(pt.x < 0 || pt.y < 0 || pt.x >= sz.width || pt.y >= sz.height));
+}
+
 // Edge Tangent Flow
 
 double Ws(const cv::Point2d &a, const cv::Point2d &b, const int radius) {
@@ -114,7 +118,7 @@ double F(const cv::Point &s, const cv::Mat &gray, const cv::Mat &gauss_dog,
         target.y > etf.size().height)
       continue;
     integral += gauss_dog.at<double>(k + half_k) *
-                (double)gray.at<uchar>(target) / 255.0;
+                (double)gray.at<uchar>(target); // 255.0;
     weight += gauss_dog.at<double>(k + half_k);
 
     if (debug++ < 100)
@@ -135,44 +139,44 @@ uchar H(const cv::Point &s, const cv::Mat &gray, const cv::Mat &etf,
       gauss_m.at<double>(half_k) * F(s, gray, gauss_dog, etf, delta_q);
   double weight = gauss_m.at<double>(half_k);
 
-  /*
   auto location = s;
-  auto step = [&](const int k, const int dir) {
-    const auto offset = delta_p * dir * etf.at<cv::Vec2d>(location);
-    const auto target = location + cv::Point(offset);
-    if (target.x < 0 || target.x > etf.size().width || target.y < 0 ||
-        target.y > etf.size().height)
+
+  auto step = [&](int kid, const int dir) {
+    kid += 1 + half_k;
+    auto offset = delta_p * dir * etf.at<cv::Vec2d>(location);
+    auto target = location + cv::Point(offset);
+    if (!inside(target, etf.size()))
       return false;
 
     const auto f = F(target, gray, gauss_dog, etf, delta_q);
-    integral += gauss_m.at<double>(k) * f;
-    weight += gauss_m.at<double>(k);
+    integral += gauss_m.at<double>(kid) * f;
+    weight += gauss_m.at<double>(kid);
     location = target;
 
     if (debug++ < 100)
-      std::cout << "<H> k: " << k << ", " << s << " -> " << target << " (+"
+      std::cout << "<H> k: " << kid << ", " << s << " -> " << target << " (+"
                 << offset << ")"
-                << ", gaussian: " << gauss_m.at<double>(k + half_k)
-                << ", I: " << f << ", integral: " << integral << std::endl;
-
+                << ", gaussian: " << gauss_m.at<double>(kid) << ", I: " << f
+                << ", integral: " << integral << std::endl;
     return true;
   };
 
   location = s;
-  for (auto k = 1; k < half_k; ++k)
-    if (!step(k + half_k, 1))
+  for (auto k = 0; k < half_k; ++k)
+    if (!step(k, 1))
       break;
 
   location = s;
-  for (auto k = 1; k < half_k; ++k)
-    if (!step(k + half_k, -1))
+  for (auto k = 0; k < half_k; ++k)
+    if (!step(k, -1))
       break;
-      */
+
   integral /= weight;
 
   if (debug++ < 100)
     std::cout << "<H~> root: " << s << ", integral: " << integral
-              << ", 1+tanh(integral)" << (1 + std::tanh(integral)) << std::endl;
+              << ", 1+tanh(integral) " << (1 + std::tanh(integral))
+              << std::endl;
   debug_min = std::min(debug_min, (1 + std::tanh(integral)));
 
   return ((integral < 0 && (1 + std::tanh(integral)) < thrs) ? 0 : 1);
@@ -213,7 +217,7 @@ cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
 cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
                       const int etf_iterations = 1, const double p_s = 0.99,
                       const double sigma_c = 1.0, const double sigma_m = 3.0,
-                      const double thrs = 0.2, const double delta_m = 1.0,
+                      const double thrs = 0.4, const double delta_m = 1.0,
                       const double delta_n = 1.0) {
   cv::Mat gray;
   cv::cvtColor(img, gray, CV_BGR2GRAY);
