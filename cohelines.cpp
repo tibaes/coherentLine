@@ -101,9 +101,6 @@ cv::Mat ETF(const cv::Mat &gray, const int kernel_radius,
 
 // Flow-based Difference-of-Gaussian
 
-static int debug = 0;
-static double debug_min = 10000000.0;
-
 double F(const cv::Point &s, const cv::Mat &gray, const cv::Mat &gauss_dog,
          const cv::Mat &etf, const int delta_q) {
   const cv::Vec2d direction = etf.at<cv::Vec2d>(s);
@@ -120,13 +117,6 @@ double F(const cv::Point &s, const cv::Mat &gray, const cv::Mat &gauss_dog,
     integral += gauss_dog.at<double>(k + half_k) *
                 (double)gray.at<uchar>(target); // 255.0;
     weight += gauss_dog.at<double>(k + half_k);
-
-    if (debug++ < 100)
-      std::cout << "<F> k: " << k << ", " << s << " -> " << target << " (+"
-                << offset << ", " << perpendicular << ")"
-                << ", gaussian: " << gauss_dog.at<double>(k + half_k)
-                << ", I: " << (double)gray.at<uchar>(target) / 255.0
-                << ", integral: " << integral << std::endl;
   }
   return (integral / weight);
 }
@@ -147,17 +137,10 @@ uchar H(const cv::Point &s, const cv::Mat &gray, const cv::Mat &etf,
     auto target = location + cv::Point(offset);
     if (!inside(target, etf.size()))
       return false;
-
     const auto f = F(target, gray, gauss_dog, etf, delta_q);
     integral += gauss_m.at<double>(kid) * f;
     weight += gauss_m.at<double>(kid);
     location = target;
-
-    if (debug++ < 100)
-      std::cout << "<H> k: " << kid << ", " << s << " -> " << target << " (+"
-                << offset << ")"
-                << ", gaussian: " << gauss_m.at<double>(kid) << ", I: " << f
-                << ", integral: " << integral << std::endl;
     return true;
   };
 
@@ -172,13 +155,6 @@ uchar H(const cv::Point &s, const cv::Mat &gray, const cv::Mat &etf,
       break;
 
   integral /= weight;
-
-  if (debug++ < 100)
-    std::cout << "<H~> root: " << s << ", integral: " << integral
-              << ", 1+tanh(integral) " << (1 + std::tanh(integral))
-              << std::endl;
-  debug_min = std::min(debug_min, (1 + std::tanh(integral)));
-
   return ((integral < 0 && (1 + std::tanh(integral)) < thrs) ? 0 : 1);
 }
 
@@ -196,9 +172,6 @@ cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
   const auto gauss_kernel_s = cv::getGaussianKernel(q, sigma_s, CV_64F);
   const auto gauss_dog_cs = gauss_kernel_c - p_s * gauss_kernel_s; // f(t)
 
-  std::cout << "kernel size: dog " << gauss_dog_cs.size() << " - m "
-            << gauss_kernel_m.size() << std::endl;
-
   cv::Mat response = cv::Mat::zeros(gray.size(), CV_8UC1);
   for (auto y = 0; y < gray.size().height; ++y) {
     for (auto x = 0; x < gray.size().width; ++x) {
@@ -208,7 +181,6 @@ cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
     }
   }
 
-  std::cout << "min tanh: " << debug_min << std::endl;
   return response;
 }
 
