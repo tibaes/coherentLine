@@ -73,6 +73,7 @@ cv::Mat ETF(const cv::Mat &gray, const int kernel_radius,
   cv::normalize(gm, mag, 1.0, 0.0, cv::NORM_MINMAX);
 
   cv::imshow("Grad", mag);
+  cv::imwrite("grad.png", mag);
   cv::waitKey(100);
 
   cv::Mat etf = g_perpendicular(gx, gy);
@@ -82,7 +83,7 @@ cv::Mat ETF(const cv::Mat &gray, const int kernel_radius,
     etf_vis0 = 0.5 * s[0] + 0.5 * s[1];
     // cv::imshow("ETF0-0", s[0]);
     // cv::imshow("ETF0-1", s[1]);
-    cv::imshow("ETF0-mean", etf_vis0);
+    // cv::imshow("ETF0-mean", etf_vis0);
 
     std::cout << "starting iteration " << i << std::endl;
     ETFIteration(etf, mag, kernel_radius);
@@ -94,6 +95,17 @@ cv::Mat ETF(const cv::Mat &gray, const int kernel_radius,
     cv::imshow("ETF1-1", s[1]);
     cv::imshow("ETF1-mean", etf_vis1);
     cv::waitKey(100);
+
+    std::stringstream outx, outy, outm;
+    outx << "ETF"
+         << "-" << i << "-x.png";
+    cv::imwrite(outx.str(), s[0]);
+    outy << "ETF"
+         << "-" << i << "-y.png";
+    cv::imwrite(outy.str(), s[1]);
+    outm << "ETF"
+         << "-" << i << "-mean.png";
+    cv::imwrite(outm.str(), etf_vis1);
   }
 
   return etf;
@@ -185,7 +197,7 @@ cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
 // Coherent Lines Filter
 
 cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
-                      const int etf_iterations = 5, const double p_s = 0.99,
+                      const int etf_iterations = 5, const double p_s = 0.997,
                       const double sigma_c = 1.0, const double sigma_m = 3.0,
                       const double thrs = 0.5, const double delta_m = 1.0,
                       const double delta_n = 1.0) {
@@ -195,6 +207,7 @@ cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
   const auto fdog =
       FDOG(gray, etf, p_s, sigma_c, sigma_m, thrs, delta_m, delta_n);
   cv::imshow("FDOG", fdog * 255);
+  cv::imwrite("FDOG.png", fdog * 255);
   return fdog;
 }
 
