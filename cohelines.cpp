@@ -111,11 +111,10 @@ double F(const cv::Point &s, const cv::Mat &gray, const cv::Mat &gauss_dog,
   for (int k = -half_k; k <= half_k; ++k) {
     const auto offset = k * delta_q * perpendicular;
     const auto target = s + cv::Point(offset);
-    if (target.x < 0 || target.x > etf.size().width || target.y < 0 ||
-        target.y > etf.size().height)
+    if (!inside(target, etf.size()))
       continue;
-    integral += gauss_dog.at<double>(k + half_k) *
-                (double)gray.at<uchar>(target); // 255.0;
+    integral +=
+        gauss_dog.at<double>(k + half_k) * (double)gray.at<uchar>(target);
     weight += gauss_dog.at<double>(k + half_k);
   }
   return (integral / weight);
@@ -128,7 +127,6 @@ uchar H(const cv::Point &s, const cv::Mat &gray, const cv::Mat &etf,
   double integral =
       gauss_m.at<double>(half_k) * F(s, gray, gauss_dog, etf, delta_q);
   double weight = gauss_m.at<double>(half_k);
-
   auto location = s;
 
   auto step = [&](int kid, const int dir) {
@@ -170,7 +168,7 @@ cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
   q += (q % 2) ? 0 : 1;
   const auto gauss_kernel_c = cv::getGaussianKernel(q, sigma_c, CV_64F);
   const auto gauss_kernel_s = cv::getGaussianKernel(q, sigma_s, CV_64F);
-  const auto gauss_dog_cs = gauss_kernel_c - p_s * gauss_kernel_s; // f(t)
+  const auto gauss_dog_cs = gauss_kernel_c - p_s * gauss_kernel_s;
 
   cv::Mat response = cv::Mat::zeros(gray.size(), CV_8UC1);
   for (auto y = 0; y < gray.size().height; ++y) {
@@ -187,9 +185,9 @@ cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
 // Coherent Lines Filter
 
 cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
-                      const int etf_iterations = 1, const double p_s = 0.99,
+                      const int etf_iterations = 5, const double p_s = 0.99,
                       const double sigma_c = 1.0, const double sigma_m = 3.0,
-                      const double thrs = 0.4, const double delta_m = 1.0,
+                      const double thrs = 0.5, const double delta_m = 1.0,
                       const double delta_n = 1.0) {
   cv::Mat gray;
   cv::cvtColor(img, gray, CV_BGR2GRAY);
