@@ -97,53 +97,103 @@ cv::Mat ETF(const cv::Mat &gray, const int kernel_radius,
 
 // Flow-based Difference-of-Gaussian
 
+static int debug = 0;
+static double debug_min = 10000000.0;
+
 double F(const cv::Point &s, const cv::Mat &gray, const cv::Mat &gauss_dog,
          const cv::Mat &etf, const int delta_q) {
   const cv::Vec2d direction = etf.at<cv::Vec2d>(s);
   const auto perpendicular = cv::Vec2d(direction[1], -direction[0]);
   double integral = 0.0;
+  double weight = 0.0;
   const int half_k = gauss_dog.size().area() / 2;
   for (int k = -half_k; k <= half_k; ++k) {
     const auto offset = k * delta_q * perpendicular;
     const auto target = s + cv::Point(offset);
-    if (!target.inside(cv::Rect(cv::Point(0, 0), gray.size())))
+    if (target.x < 0 || target.x > etf.size().width || target.y < 0 ||
+        target.y > etf.size().height)
       continue;
-    integral +=
-        gauss_dog.at<double>(k + half_k) * (double)gray.at<uchar>(target);
+    integral += gauss_dog.at<double>(k + half_k) *
+                (double)gray.at<uchar>(target) / 255.0;
+    weight += gauss_dog.at<double>(k + half_k);
+
+    if (debug++ < 100)
+      std::cout << "<F> k: " << k << ", " << s << " -> " << target << " (+"
+                << offset << ", " << perpendicular << ")"
+                << ", gaussian: " << gauss_dog.at<double>(k + half_k)
+                << ", I: " << (double)gray.at<uchar>(target) / 255.0
+                << ", integral: " << integral << std::endl;
   }
-  return integral;
+  return (integral / weight);
 }
 
 uchar H(const cv::Point &s, const cv::Mat &gray, const cv::Mat &etf,
         const cv::Mat &gauss_m, const cv::Mat &gauss_dog, const int delta_p,
         const int delta_q, const double thrs) {
-  const cv::Vec2d direction = etf.at<cv::Vec2d>(s);
-  double integral = 0.0;
   const int half_k = gauss_m.size().area() / 2;
-  for (int k = -half_k; k <= half_k; ++k) {
-    const auto offset = k * delta_p * direction;
-    const auto target = s + cv::Point(offset);
-    if (!target.inside(cv::Rect(cv::Point(0, 0), gray.size())))
-      continue;
-    integral += gauss_m.at<double>(k + half_k) *
-                F(target, gray, gauss_dog, etf, delta_q);
-  }
-  return ((integral < 0 && 1 + std::tanh(integral) < thrs) ? 0 : 1);
+  double integral =
+      gauss_m.at<double>(half_k) * F(s, gray, gauss_dog, etf, delta_q);
+  double weight = gauss_m.at<double>(half_k);
+
+  /*
+  auto location = s;
+  auto step = [&](const int k, const int dir) {
+    const auto offset = delta_p * dir * etf.at<cv::Vec2d>(location);
+    const auto target = location + cv::Point(offset);
+    if (target.x < 0 || target.x > etf.size().width || target.y < 0 ||
+        target.y > etf.size().height)
+      return false;
+
+    const auto f = F(target, gray, gauss_dog, etf, delta_q);
+    integral += gauss_m.at<double>(k) * f;
+    weight += gauss_m.at<double>(k);
+    location = target;
+
+    if (debug++ < 100)
+      std::cout << "<H> k: " << k << ", " << s << " -> " << target << " (+"
+                << offset << ")"
+                << ", gaussian: " << gauss_m.at<double>(k + half_k)
+                << ", I: " << f << ", integral: " << integral << std::endl;
+
+    return true;
+  };
+
+  location = s;
+  for (auto k = 1; k < half_k; ++k)
+    if (!step(k + half_k, 1))
+      break;
+
+  location = s;
+  for (auto k = 1; k < half_k; ++k)
+    if (!step(k + half_k, -1))
+      break;
+      */
+  integral /= weight;
+
+  if (debug++ < 100)
+    std::cout << "<H~> root: " << s << ", integral: " << integral
+              << ", 1+tanh(integral)" << (1 + std::tanh(integral)) << std::endl;
+  debug_min = std::min(debug_min, (1 + std::tanh(integral)));
+
+  return ((integral < 0 && (1 + std::tanh(integral)) < thrs) ? 0 : 1);
 }
 
 cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
              const double sigma_c, const double sigma_m, const double thrs,
              const double delta_p, const double delta_q) {
-  int p = 2.0 * sigma_m;
+  int p = 3.0 * sigma_m;
   p += (p % 2) ? 0 : 1;
   const auto gauss_kernel_m = cv::getGaussianKernel(p, sigma_m, CV_64F);
 
   const double sigma_s = 1.6 * sigma_c;
-  int q = 2.0 * sigma_c;
-  q = (q % 2) ? 0 : 1;
+  int q = 3.0 * sigma_c;
+  q += (q % 2) ? 0 : 1;
   const auto gauss_kernel_c = cv::getGaussianKernel(q, sigma_c, CV_64F);
   const auto gauss_kernel_s = cv::getGaussianKernel(q, sigma_s, CV_64F);
   const auto gauss_dog_cs = gauss_kernel_c - p_s * gauss_kernel_s; // f(t)
+
+  std::cout << "kernel size: dog " << gauss_dog_cs.size() << " - m "
+            << gauss_kernel_m.size() << std::endl;
 
   cv::Mat response = cv::Mat::zeros(gray.size(), CV_8UC1);
   for (auto y = 0; y < gray.size().height; ++y) {
@@ -153,13 +203,15 @@ cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
                                    gauss_dog_cs, delta_p, delta_q, thrs);
     }
   }
+
+  std::cout << "min tanh: " << debug_min << std::endl;
   return response;
 }
 
 // Coherent Lines Filter
 
 cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
-                      const int etf_iterations = 5, const double p_s = 0.99,
+                      const int etf_iterations = 1, const double p_s = 0.99,
                       const double sigma_c = 1.0, const double sigma_m = 3.0,
                       const double thrs = 0.2, const double delta_m = 1.0,
                       const double delta_n = 1.0) {
@@ -168,7 +220,8 @@ cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
   const auto etf = ETF(gray, kernel_radius, etf_iterations);
   const auto fdog =
       FDOG(gray, etf, p_s, sigma_c, sigma_m, thrs, delta_m, delta_n);
-  return cv::Mat();
+  cv::imshow("FDOG", fdog * 255);
+  return fdog;
 }
 
 // Sample
