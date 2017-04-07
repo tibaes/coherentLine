@@ -8,6 +8,12 @@ bool inside(const cv::Point &pt, const cv::Size &sz) {
   return (!(pt.x < 0 || pt.y < 0 || pt.x >= sz.width || pt.y >= sz.height));
 }
 
+cv::Mat drawimg64(const cv::Mat &m) {
+  cv::Mat n;
+  m.convertTo(n, CV_8UC1, 255, 0);
+  return n;
+}
+
 // Edge Tangent Flow
 
 double Ws(const cv::Point2d &a, const cv::Point2d &b, const int radius) {
@@ -73,7 +79,7 @@ cv::Mat ETF(const cv::Mat &gray, const int kernel_radius,
   cv::normalize(gm, mag, 1.0, 0.0, cv::NORM_MINMAX);
 
   cv::imshow("Grad", mag);
-  cv::imwrite("grad.png", mag);
+  cv::imwrite("grad.png", drawimg64(mag));
   cv::waitKey(100);
 
   cv::Mat etf = g_perpendicular(gx, gy);
@@ -99,13 +105,13 @@ cv::Mat ETF(const cv::Mat &gray, const int kernel_radius,
     std::stringstream outx, outy, outm;
     outx << "ETF"
          << "-" << i << "-x.png";
-    cv::imwrite(outx.str(), s[0]);
+    cv::imwrite(outx.str(), drawimg64(s[0]));
     outy << "ETF"
          << "-" << i << "-y.png";
-    cv::imwrite(outy.str(), s[1]);
+    cv::imwrite(outy.str(), drawimg64(s[1]));
     outm << "ETF"
          << "-" << i << "-mean.png";
-    cv::imwrite(outm.str(), etf_vis1);
+    cv::imwrite(outm.str(), drawimg64(etf_vis1));
   }
 
   return etf;
@@ -197,7 +203,7 @@ cv::Mat FDOG(const cv::Mat &gray, const cv::Mat &etf, const double p_s,
 // Coherent Lines Filter
 
 cv::Mat coherentLines(const cv::Mat &img, const int kernel_radius = 5,
-                      const int etf_iterations = 5, const double p_s = 0.997,
+                      const int etf_iterations = 5, const double p_s = 0.995,
                       const double sigma_c = 1.0, const double sigma_m = 3.0,
                       const double thrs = 0.5, const double delta_m = 1.0,
                       const double delta_n = 1.0) {

@@ -1,3 +1,7 @@
+*.bmp
+*.png
+*.jpg
+
 # Compiled Object files
 *.slo
 *.lo
